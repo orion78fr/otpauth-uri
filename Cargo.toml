@@ -1,0 +1,13 @@
+[package]
+authors = ["eV <ev@7pr.xyz>"]
+name = "otpauth-uri"
+description = "A rust otpauth uri parser and otp (TOTP/HTOP) code generation library."
+version = "0.1.0"
+
+[dependencies]
+data-encoding = "2.1.1"
+hmac = "0.6.2"
+nom = "4.0.0"
+percent-encoding = "1.0.1"
+sha-1 = "0.7.0"
+sha2 = "0.7.1"
