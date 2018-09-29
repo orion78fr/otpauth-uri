@@ -1,8 +1,11 @@
 [package]
 authors = ["eV <ev@7pr.xyz>"]
-name = "otpauth-uri"
 description = "A rust otpauth uri parser and otp (TOTP/HTOP) code generation library."
-version = "0.1.0"
+homepage = "https://github.com/evq/otpauth-uri"
+license = "MIT"
+name = "otpauth-uri"
+repository = "https://github.com/evq/otpauth-uri"
+version = "1.0.0"
 
 [dependencies]
 data-encoding = "2.1.1"
