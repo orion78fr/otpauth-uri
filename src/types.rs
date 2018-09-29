@@ -152,7 +152,7 @@ impl HOTPGenerator {
         D::BlockSize: ArrayLength<u8>,
     {
         let mut mac = Hmac::<D>::new_varkey(&self.secret).unwrap();
-        mac.input(&self.counter.to_be().to_bytes());
+        mac.input(&self.counter.to_be_bytes());
 
         self.counter += 1;
 
@@ -162,7 +162,7 @@ impl HOTPGenerator {
         let offset: usize = (digest[digest.len() - 1] & 0xf) as usize;
 
         let b: &[u8; 4] = (&digest[offset..offset + 4]).try_into().unwrap();
-        let base = u32::from_be(u32::from_bytes(*b)) & 0x7fff_ffff;
+        let base = u32::from_be_bytes(*b) & 0x7fff_ffff;
 
         format!(
             "{:01$}",

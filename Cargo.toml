@@ -5,7 +5,7 @@ homepage = "https://github.com/evq/otpauth-uri"
 license = "MIT"
 name = "otpauth-uri"
 repository = "https://github.com/evq/otpauth-uri"
-version = "1.0.0"
+version = "1.0.1"
 
 [dependencies]
 data-encoding = "2.1.1"
