@@ -1,6 +1,6 @@
 use std::str;
 
-use types::{OTPAlgorithm, OTPDigits, OTPType, OTPUri};
+use types::{OTPAlgorithm, OTPDigits, OTPLabel, OTPType, OTPUri};
 
 use data_encoding::BASE32_NOPAD;
 use nom::types::CompleteStr;
@@ -27,6 +27,13 @@ pub fn parse_otpauth_uri(uri: &str) -> Result<OTPUri, ()> {
             }
             Ok(c)
         }
+        Err(_) => Err(()),
+    }
+}
+
+pub fn parse_otpauth_label(label: &str) -> Result<OTPLabel, ()> {
+    match otpauth_label(CompleteStr(label)) {
+        Ok((_, c)) => Ok(c),
         Err(_) => Err(()),
     }
 }
@@ -86,7 +93,7 @@ enum OTPURIOption {
     Period(u32),
 }
 
-named!(otpurioption<CompleteStr, OTPURIOption>,
+named!(otpuri_option<CompleteStr, OTPURIOption>,
     do_parse!(
        option: alt!(
             map!(do_parse!(
@@ -122,20 +129,28 @@ named!(otpurioption<CompleteStr, OTPURIOption>,
             ) >>
         alt!(tag!("&") | eof!()) >>
         (option)
-    ));
+    )
+);
+
+named!(otpauth_label<CompleteStr, OTPLabel>,
+    do_parse!(
+        issuer: opt!(map_res!(alt!(take_until_and_consume!(":") | take_until_and_consume!("%3A")), from_percent_encoding)) >>
+        many0!(tag!("%20")) >>
+        accountname: map_res!(alt_complete!(take_until_and_consume!("?") | rest_complete_s), from_percent_encoding) >>
+        (OTPLabel { issuer, accountname})
+    )
+);
 
 named!(otpauth_uri<CompleteStr, OTPUri>,
     do_parse!(
         tag!("otpauth://") >>
         otptype: otptype >>
         tag!("/") >>
-        label_issuer: opt!(map_res!(alt!(take_until_and_consume!(":") | take_until_and_consume!("%3A")), from_percent_encoding)) >>
-        many0!(tag!("%20")) >>
-        accountname: map_res!(take_until_and_consume!("?"), from_percent_encoding) >>
-        result: fold_many0!( otpurioption, OTPUri::new(), |mut result: OTPUri, option| {
+        label: otpauth_label >>
+        result: fold_many0!( otpuri_option, OTPUri::new(), |mut result: OTPUri, option| {
             match option {
                 OTPURIOption::Secret(b) => result.secret = b,
-                OTPURIOption::Issuer(s) => result.issuer = Some(s),
+                OTPURIOption::Issuer(s) => result.label.issuer = Some(s),
                 OTPURIOption::Algorithm(a) => result.algorithm = Some(a),
                 OTPURIOption::Digits(d) => result.digits = Some(d),
                 OTPURIOption::Counter(d) => result.counter = Some(d),
@@ -145,8 +160,7 @@ named!(otpauth_uri<CompleteStr, OTPUri>,
         }) >>
         eof!() >>
         (OTPUri {
-            accountname: accountname,
-            issuer: result.issuer.or(label_issuer),
+            label: OTPLabel{ issuer: result.label.issuer.or(label.issuer), accountname: label.accountname},
             otptype,
             algorithm: result.algorithm,
             counter: result.counter,
@@ -160,8 +174,17 @@ named!(otpauth_uri<CompleteStr, OTPUri>,
 #[cfg(test)]
 mod tests {
     use nom::types::CompleteStr;
-    use parser::{from_base32, from_percent_encoding, parse_otpauth_uri};
+    use parser::{from_base32, from_percent_encoding, parse_otpauth_label, parse_otpauth_uri};
     use types::{OTPAlgorithm, OTPDigits, OTPType};
+
+    #[test]
+    fn parse_otpauth_label_works() {
+        let label = "Example:alice@google.com";
+
+        let label = parse_otpauth_label(label).unwrap();
+        assert_eq!(label.accountname, "alice@google.com");
+        assert_eq!(label.issuer, Some("Example".to_string()));
+    }
 
     #[test]
     fn examples_works() {
@@ -172,8 +195,8 @@ mod tests {
         for _i in 0..2 {
             let mut key = parse_otpauth_uri(&url).unwrap();
             assert_eq!(key.otptype, OTPType::TOTP);
-            assert_eq!(key.accountname, "alice@google.com");
-            assert_eq!(key.issuer, Some("Example".to_string()));
+            assert_eq!(key.label.accountname, "alice@google.com");
+            assert_eq!(key.label.issuer, Some("Example".to_string()));
             assert_eq!(
                 key.secret,
                 [
@@ -189,8 +212,8 @@ mod tests {
         for _i in 0..2 {
             let mut key = parse_otpauth_uri(&url).unwrap();
             assert_eq!(key.otptype, OTPType::TOTP);
-            assert_eq!(key.accountname, "john.doe@email.com");
-            assert_eq!(key.issuer, Some("ACME Co".to_string()));
+            assert_eq!(key.label.accountname, "john.doe@email.com");
+            assert_eq!(key.label.issuer, Some("ACME Co".to_string()));
             assert_eq!(key.algorithm, Some(OTPAlgorithm::SHA1));
             assert_eq!(key.period, Some(30));
             assert_eq!(key.digits, Some(OTPDigits::Six));
@@ -224,7 +247,7 @@ mod tests {
         for _i in 0..2 {
             let key = parse_otpauth_uri(&url).unwrap();
             assert_eq!(key.otptype, OTPType::TOTP);
-            assert_eq!(key.accountname, VALID_ACCOUNTNAME);
+            assert_eq!(key.label.accountname, VALID_ACCOUNTNAME);
             assert_eq!(key.secret, VALID_SECRET);
             assert_eq!(key.algorithm, Some(OTPAlgorithm::SHA256));
             assert_eq!(key.period, Some(45));
@@ -239,7 +262,7 @@ mod tests {
         for _i in 0..2 {
             let key = parse_otpauth_uri(&url).unwrap();
             assert_eq!(key.otptype, OTPType::HOTP);
-            assert_eq!(key.accountname, VALID_ACCOUNTNAME);
+            assert_eq!(key.label.accountname, VALID_ACCOUNTNAME);
             assert_eq!(key.secret, VALID_SECRET);
             assert_eq!(key.algorithm, Some(OTPAlgorithm::SHA256));
             assert_eq!(key.counter, Some(18446744073709551615));

@@ -57,12 +57,17 @@ impl fmt::Display for OTPDigits {
 }
 
 #[derive(Debug)]
-pub struct OTPUri {
+pub struct OTPLabel {
+    pub issuer: Option<String>,
     pub accountname: String,
+}
+
+#[derive(Debug)]
+pub struct OTPUri {
     pub algorithm: Option<OTPAlgorithm>,
     pub counter: Option<u64>,
     pub digits: Option<OTPDigits>,
-    pub issuer: Option<String>,
+    pub label: OTPLabel,
     pub otptype: OTPType,
     pub period: Option<u32>,
     pub secret: Vec<u8>,
@@ -71,11 +76,13 @@ pub struct OTPUri {
 impl OTPUri {
     pub fn new() -> Self {
         OTPUri {
-            accountname: "".to_owned(),
             algorithm: None,
             counter: None,
             digits: None,
-            issuer: None,
+            label: OTPLabel {
+                issuer: None,
+                accountname: "".to_owned(),
+            },
             otptype: OTPType::TOTP,
             period: None,
             secret: Vec::new(),
@@ -86,13 +93,13 @@ impl OTPUri {
 impl fmt::Display for OTPUri {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "otpauth://{}/", self.otptype)?;
-        if let Some(ref issuer) = self.issuer {
+        if let Some(ref issuer) = self.label.issuer {
             write!(f, "{}:", utf8_percent_encode(issuer, DEFAULT_ENCODE_SET))?;
         }
         write!(
             f,
             "{}?",
-            utf8_percent_encode(&self.accountname, DEFAULT_ENCODE_SET)
+            utf8_percent_encode(&self.label.accountname, DEFAULT_ENCODE_SET)
         )?;
         if let Some(algorithm) = self.algorithm {
             write!(f, "algorithm={}&", algorithm)?;
@@ -103,7 +110,7 @@ impl fmt::Display for OTPUri {
         if let Some(digits) = self.digits {
             write!(f, "digits={}&", digits)?;
         }
-        if let Some(ref issuer) = self.issuer {
+        if let Some(ref issuer) = self.label.issuer {
             write!(
                 f,
                 "issuer={}&",
