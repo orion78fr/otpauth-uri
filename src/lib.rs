@@ -1,6 +1,3 @@
-#![feature(int_to_from_bytes)]
-#![feature(try_from)]
-
 extern crate data_encoding;
 extern crate hmac;
 #[macro_use]
