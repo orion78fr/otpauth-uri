@@ -2,7 +2,7 @@ use std::str;
 
 use types::{OTPAlgorithm, OTPDigits, OTPLabel, OTPType, OTPUri};
 
-use data_encoding::BASE32_NOPAD;
+use data_encoding::{BASE32_NOPAD, BASE32};
 use nom::types::CompleteStr;
 use nom::{digit, IResult};
 use percent_encoding::percent_decode;
@@ -59,7 +59,11 @@ fn to_u64(input: CompleteStr) -> Result<u64, ()> {
 }
 
 fn from_base32(input: CompleteStr) -> Result<Vec<u8>, ()> {
-    match BASE32_NOPAD.decode(input.0.as_bytes()) {
+    match BASE32_NOPAD.decode(input.0.as_bytes())
+        .or_else(|_| {
+            let decoded: Vec<_> = percent_decode(input.0.as_bytes()).collect();
+            BASE32.decode(decoded.as_slice())
+        }) {
         Ok(i) => Ok(i),
         Err(_) => Err(()),
     }
@@ -193,7 +197,7 @@ mod tests {
                 .to_string();
 
         for _i in 0..2 {
-            let mut key = parse_otpauth_uri(&url).unwrap();
+            let key = parse_otpauth_uri(&url).unwrap();
             assert_eq!(key.otptype, OTPType::TOTP);
             assert_eq!(key.label.accountname, "alice@google.com");
             assert_eq!(key.label.issuer, Some("Example".to_string()));
@@ -210,7 +214,7 @@ mod tests {
         url = "otpauth://totp/ACME%20Co:john.doe@email.com?secret=HXDMVJECJJWSRB3HWIZR4IFUGFTMXBOZ&issuer=ACME%20Co&algorithm=SHA1&digits=6&period=30".to_string();
 
         for _i in 0..2 {
-            let mut key = parse_otpauth_uri(&url).unwrap();
+            let key = parse_otpauth_uri(&url).unwrap();
             assert_eq!(key.otptype, OTPType::TOTP);
             assert_eq!(key.label.accountname, "john.doe@email.com");
             assert_eq!(key.label.issuer, Some("ACME Co".to_string()));
@@ -232,6 +236,15 @@ mod tests {
         let base32_secret = "AAAQEAYEAUDAOCAJBIFQYDIOB4";
         let decoded_secret = from_base32(CompleteStr(base32_secret)).unwrap();
         assert_eq!(decoded_secret, VALID_SECRET);
+    }
+
+    #[test]
+    fn from_base32_can_have_padding() {
+        // "The padding specified in RFC 3548 section 2.2 is not required and should be omitted."
+        // ... but the padding could be there (KeepassXC otp attributes contains them)
+        assert_eq!(from_base32(CompleteStr("IFBEGRCFIZDUQ")).unwrap(), "ABCDEFGH".as_bytes());
+        assert_eq!(from_base32(CompleteStr("IFBEGRCFIZDUQ%3D%3D%3D")).unwrap(), "ABCDEFGH".as_bytes());
+        assert_eq!(from_base32(CompleteStr("IFBEGRCFIZDUQ===")).unwrap(), "ABCDEFGH".as_bytes());
     }
 
     #[test]
