@@ -9,25 +9,25 @@ use percent_encoding::percent_decode;
 
 // NOTE See https://github.com/google/google-authenticator/wiki/Key-Uri-Format
 
-pub fn parse_otpauth_uri(uri: &str) -> Result<OTPUri, ()> {
+pub fn parse_otpauth_uri(uri: &str) -> Result<OTPUri, String> {
     match otpauth_uri(CompleteStr(uri)) {
         Ok((_, c)) => {
             if c.secret.len() == 0 {
-                return Err(());
+                return Err(String::from("c.secret.len() == 0"));
             }
             if let Some(period) = c.period {
                 if period == 0 {
-                    return Err(());
+                    return Err(String::from("period == 0"));
                 }
             }
             if let OTPType::HOTP = c.otptype {
                 if let None = c.counter {
-                    return Err(());
+                    return Err(String::from("None = c.counter"));
                 }
             }
             Ok(c)
         }
-        Err(_) => Err(()),
+        Err(e) => Err(format!("{:?}", e)),
     }
 }
 
